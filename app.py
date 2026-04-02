@@ -5,7 +5,7 @@ import plotly.express as px
 import os
 
 # 페이지 설정
-st.set_page_config(page_title="BBC 주식 포트폴리오", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="BBC 주식 포트폴리오", layout="wide", initial_sidebar_state="collapsed")
 
 # 기본 스타일 설정
 st.markdown("""
@@ -177,13 +177,26 @@ with col_r:
     st.plotly_chart(fig_bar, use_container_width=True)
 
 st.subheader("🔍 포트폴리오 상세 내역 (원화 통합)")
-# 요청 사항: 시장/티커 삭제, 1개월 수익률 추가
-display_df = df[['Name', 'Quantity', 'BuyPrice', 'CurrentPrice', '1개월수익률(%)', '수익률(%)', 'CurrentAmount_KRW', 'Profit_KRW']].copy()
-display_df.columns = ['종목명', '보유수량', '매입단가(현지)', '현재가(현지)', '1개월수익률(%)', '수익률(%)', '평가금액(원)', '수익금(원)']
 
-st.dataframe(display_df.style.format({
-    '매입단가(현지)': '{:,.2f}',
-    '현재가(현지)': '{:,.2f}',
+# 내부적으로 Market 정보를 활용하여 가격 포맷팅 처리
+def format_local_price(row, price_col):
+    price = row[price_col]
+    if row['Market'] == 'KR':
+        return f"{int(round(price)):,}" # KR은 소수점 없이 쉼표 포함 정수로
+    else:
+        return f"{price:,.2f}" # 그 외 시장은 소수점 둘째자리까지
+
+# 화면 표시용 데이터 생성
+display_df = df.copy()
+display_df['매입단가(현지)'] = display_df.apply(lambda x: format_local_price(x, 'BuyPrice'), axis=1)
+display_df['현재가(현지)'] = display_df.apply(lambda x: format_local_price(x, 'CurrentPrice'), axis=1)
+
+# 최종 노출 컬럼 (사용자 요청: 시장, 티커 제외)
+final_cols = ['Name', 'Quantity', '매입단가(현지)', '현재가(현지)', '1개월수익률(%)', '수익률(%)', 'CurrentAmount_KRW', 'Profit_KRW']
+final_df = display_df[final_cols].copy()
+final_df.columns = ['종목명', '보유수량', '매입단가(현지)', '현재가(현지)', '1개월수익률(%)', '수익률(%)', '평가금액(원)', '수익금(원)']
+
+st.dataframe(final_df.style.format({
     '1개월수익률(%)': '{:.2f}%',
     '수익률(%)': '{:.2f}%',
     '평가금액(원)': '₩{:,.0f}',
