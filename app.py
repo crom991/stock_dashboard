@@ -5,7 +5,7 @@ import plotly.express as px
 import os
 
 # 페이지 설정
-st.set_page_config(page_title="BBC 글로벌 주식 포트폴리오", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="BBC 주식 포트폴리오", layout="wide", initial_sidebar_state="expanded")
 
 # 스타일 설정 (화이트 테마 고정)
 st.markdown("""
