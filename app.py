@@ -7,13 +7,10 @@ import os
 # 페이지 설정
 st.set_page_config(page_title="BBC 주식 포트폴리오", layout="wide", initial_sidebar_state="expanded")
 
-# 스타일 설정 (화이트 테마 고정)
+# 기본 스타일 설정
 st.markdown("""
     <style>
-    [data-testid="stAppViewContainer"] { background-color: #ffffff; }
-    [data-testid="stSidebar"] { background-color: #f8f9fa; }
-    .main { background-color: #ffffff; }
-    .stMetric { background-color: #f8f9fa; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #eee; }
+    .stMetric { padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #eee; }
     </style>
     """, unsafe_allow_html=True)
 
