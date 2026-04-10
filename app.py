@@ -215,7 +215,10 @@ styled_df = final_df.style.format({
 styled_df = styled_df.set_properties(**{'text-align': 'right'}, 
                                     subset=['보유수량', '매입단가(현지)', '현재가(현지)', '1개월수익률(%)', '수익률(%)', '평가금액(원)', '수익금(원)'])
 
-st.dataframe(styled_df, use_container_width=True)
+# 데이터프레임 높이를 동적으로 계산하여 스크롤 없이 표시 (행 개수에 비례)
+# 기본 35px(헤더) + (행 개수 * 35px) + 여유분
+df_height = (len(final_df) + 1) * 35 + 3
+st.dataframe(styled_df, use_container_width=True, height=df_height)
 
 st.sidebar.markdown("---")
 if st.sidebar.button("데이터 새로고침"):
