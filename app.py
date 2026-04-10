@@ -118,11 +118,15 @@ def fetch_prices_and_historical(tickers):
                 hist = s.history(period="2mo")
                 if not hist.empty:
                     current_price = hist['Close'].iloc[-1]
+                    # 한국 시장 등 일부 종목에서 마지막 가격이 nan으로 나오는 경우 처리
+                    if pd.isna(current_price):
+                        current_price = s.info.get('currentPrice', s.info.get('regularMarketPrice', 0))
+                    
                     target_date = hist.index[-1] - pd.Timedelta(days=30)
                     month_ago_price = hist.iloc[hist.index.get_indexer([target_date], method='nearest')[0]]['Close']
                     data[t] = {'current': current_price, 'month_ago': month_ago_price}
                 else:
-                    cp = s.info.get('currentPrice', s.info.get('previousClose', 0))
+                    cp = s.info.get('currentPrice', s.info.get('regularMarketPrice', s.info.get('previousClose', 0)))
                     data[t] = {'current': cp, 'month_ago': cp}
             except:
                 data[t] = {'current': 0, 'month_ago': 0}
