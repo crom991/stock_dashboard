@@ -181,6 +181,8 @@ st.subheader("🔍 포트폴리오 상세 내역 (원화 통합)")
 # 내부적으로 Market 정보를 활용하여 가격 포맷팅 처리
 def format_local_price(row, price_col):
     price = row[price_col]
+    if pd.isna(price):
+        return "0"
     if row['Market'] == 'KR':
         return f"{int(round(price)):,}" # KR은 소수점 없이 쉼표 포함 정수로
     else:
@@ -196,13 +198,20 @@ final_cols = ['Name', 'Quantity', '매입단가(현지)', '현재가(현지)', '
 final_df = display_df[final_cols].copy()
 final_df.columns = ['종목명', '보유수량', '매입단가(현지)', '현재가(현지)', '1개월수익률(%)', '수익률(%)', '평가금액(원)', '수익금(원)']
 
-st.dataframe(final_df.style.format({
+# 열 정렬 및 색상 스타일 적용
+styled_df = final_df.style.format({
     '1개월수익률(%)': '{:.2f}%',
     '수익률(%)': '{:.2f}%',
     '평가금액(원)': '₩{:,.0f}',
     '수익금(원)': '₩{:,.0f}'
 }).map(lambda x: 'color: red' if isinstance(x, (int, float)) and x > 0 else ('color: blue' if isinstance(x, (int, float)) and x < 0 else ''), 
-      subset=['1개월수익률(%)', '수익률(%)', '수익금(원)']), use_container_width=True)
+      subset=['1개월수익률(%)', '수익률(%)', '수익금(원)'])
+
+# 숫자 데이터 열 오른쪽 정렬 (CSS 적용)
+styled_df = styled_df.set_properties(**{'text-align': 'right'}, 
+                                    subset=['보유수량', '매입단가(현지)', '현재가(현지)', '1개월수익률(%)', '수익률(%)', '평가금액(원)', '수익금(원)'])
+
+st.dataframe(styled_df, use_container_width=True)
 
 st.sidebar.markdown("---")
 if st.sidebar.button("데이터 새로고침"):
