@@ -53,12 +53,17 @@ def check_password_and_preload():
             get_exchange_rates()
             
         password_input = st.text_input("Password", type="password")
-        if st.button("Login"):
+        
+        # 엔터키 입력 시 또는 버튼 클릭 시 로그인 처리
+        if password_input:
             if password_input.lower() == "bbc":
                 st.session_state["authenticated"] = True
                 st.rerun()
-            else:
+            elif len(password_input) > 0 and st.button("Login"):
                 st.error("❌ 비밀번호가 틀렸습니다.")
+        elif st.button("Login"):
+            st.error("❌ 비밀번호를 입력해주세요.")
+
         st.stop()
 
 check_password_and_preload()
