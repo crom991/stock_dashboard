@@ -3,6 +3,9 @@ import pandas as pd
 import yfinance as yf
 import plotly.express as px
 import os
+import hmac
+
+from market_data import fetch_price_history
 
 # 페이지 설정
 st.set_page_config(page_title="BBC 주식 포트폴리오", layout="wide", initial_sidebar_state="collapsed")
@@ -43,6 +46,16 @@ def transform_ticker(ticker, market):
 
 st.title("🌎 BBC 포트폴리오 대시보드")
 
+def get_configured_password():
+    """접속 비밀번호는 환경변수 또는 Streamlit Secret에서만 읽는다."""
+    environment_password = os.environ.get("APP_PASSWORD", "")
+    if environment_password:
+        return environment_password
+    try:
+        return str(st.secrets["APP_PASSWORD"])
+    except Exception:
+        return ""
+
 def check_password_and_preload():
     if "authenticated" not in st.session_state:
         st.session_state["authenticated"] = False
@@ -56,7 +69,10 @@ def check_password_and_preload():
         
         # 엔터키 입력 시 또는 버튼 클릭 시 로그인 처리
         if password_input:
-            if password_input.lower() == "bbc":
+            configured_password = get_configured_password()
+            if not configured_password:
+                st.error("❌ APP_PASSWORD Secret이 설정되지 않았습니다.")
+            elif hmac.compare_digest(password_input, configured_password):
                 st.session_state["authenticated"] = True
                 st.rerun()
             elif len(password_input) > 0 and st.button("Login"):
@@ -114,36 +130,37 @@ else:
 # --- 4. 실시간 및 과거 주가 수집 ---
 
 @st.cache_data(ttl=300, show_spinner=False)
-def fetch_prices_and_historical(tickers):
+def fetch_prices_and_historical(price_requests):
     data = {}
     with st.spinner('주가 데이터를 가져오는 중...'):
-        for t in tickers:
-            try:
-                s = yf.Ticker(t)
-                hist = s.history(period="2mo")
-                if not hist.empty:
-                    current_price = hist['Close'].iloc[-1]
-                    # 한국 시장 등 일부 종목에서 마지막 가격이 nan으로 나오는 경우 처리
-                    if pd.isna(current_price):
-                        current_price = s.info.get('currentPrice', s.info.get('regularMarketPrice', 0))
-                    
-                    target_date = hist.index[-1] - pd.Timedelta(days=30)
-                    month_ago_price = hist.iloc[hist.index.get_indexer([target_date], method='nearest')[0]]['Close']
-                    data[t] = {'current': current_price, 'month_ago': month_ago_price}
-                else:
-                    cp = s.info.get('currentPrice', s.info.get('regularMarketPrice', s.info.get('previousClose', 0)))
-                    data[t] = {'current': cp, 'month_ago': cp}
-            except:
-                data[t] = {'current': 0, 'month_ago': 0}
+        for market, ticker, mapped_ticker in price_requests:
+            key = (market, ticker, mapped_ticker)
+            data[key] = fetch_price_history(market, ticker, mapped_ticker)
     return data
 
-unique_tickers = df['MappedTicker'].unique().tolist()
-price_data = fetch_prices_and_historical(unique_tickers)
+df['PriceKey'] = list(zip(
+    df['Market'].astype(str).str.upper().str.strip(),
+    df['Ticker'].astype(str).str.strip(),
+    df['MappedTicker'].astype(str).str.strip(),
+))
+price_requests = tuple(dict.fromkeys(df['PriceKey'].tolist()))
+price_data = fetch_prices_and_historical(price_requests)
 
 # --- 5. 통계 계산 ---
 
-df['CurrentPrice'] = df['MappedTicker'].apply(lambda x: price_data.get(x, {}).get('current', 0))
-df['MonthAgoPrice'] = df['MappedTicker'].apply(lambda x: price_data.get(x, {}).get('month_ago', 0))
+df['CurrentPrice'] = df['PriceKey'].apply(
+    lambda key: price_data.get(key, {}).get('current', float('nan'))
+)
+df['MonthAgoPrice'] = df['PriceKey'].apply(
+    lambda key: price_data.get(key, {}).get('month_ago', float('nan'))
+)
+df['PriceError'] = df['PriceKey'].apply(
+    lambda key: price_data.get(key, {}).get('error')
+)
+
+failed_price_names = df.loc[df['CurrentPrice'].isna(), 'Name'].tolist()
+if failed_price_names:
+    st.warning(f"가격 조회 실패: {', '.join(failed_price_names)}")
 
 def apply_ex_rate(market):
     market = str(market).upper().strip()
@@ -191,7 +208,7 @@ st.subheader("🔍 포트폴리오 상세 내역 (원화 통합)")
 def format_local_price(row, price_col):
     price = row[price_col]
     if pd.isna(price):
-        return "0"
+        return "조회 실패"
     if row['Market'] == 'KR':
         return f"{int(round(price)):,}" # KR은 소수점 없이 쉼표 포함 정수로
     else:
@@ -213,7 +230,7 @@ styled_df = final_df.style.format({
     '수익률(%)': '{:.2f}%',
     '평가금액(원)': '₩{:,.0f}',
     '수익금(원)': '₩{:,.0f}'
-}).map(lambda x: 'color: red' if isinstance(x, (int, float)) and x > 0 else ('color: blue' if isinstance(x, (int, float)) and x < 0 else ''), 
+}, na_rep='조회 실패').map(lambda x: 'color: red' if isinstance(x, (int, float)) and x > 0 else ('color: blue' if isinstance(x, (int, float)) and x < 0 else ''), 
       subset=['1개월수익률(%)', '수익률(%)', '수익금(원)'])
 
 # 숫자 데이터 열 오른쪽 정렬 (CSS 적용)
@@ -231,3 +248,4 @@ if st.sidebar.button("데이터 새로고침"):
     st.rerun()
 st.sidebar.caption(f"환율: USD {rates['USD']:.1f} / HKD {rates['HKD']:.1f}")
 st.sidebar.caption(f"마지막 업데이트: {pd.Timestamp.now().strftime('%H:%M:%S')}")
+
